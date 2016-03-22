@@ -37,16 +37,16 @@ class CorpCreditSpider(scrapy.Spider):
             corp_info['corp_id'] = i.get('C2')
             corp_info['join_exception_date'] = i.get('C3')
 
-            # if i.get('onclickFn'):
-            #     corp_detail_post_data = {
-            #         'org': i.get('ORG', ''),
-            #         'id': i.get('ID'),
-            #         'seq_id': i.get('SEQ_ID'),
-            #         'specificQuery': 'basicInfo'
-            #     }
-            #     detail_url = 'http://218.94.38.242:58888/ecipplatform/ciServlet.json?ciEnter=true'
-            #     yield scrapy.FormRequest(detail_url, method='POST', formdata=corp_detail_post_data,
-            #                              callback=self.parse_corp_detail, meta={'corp_info': corp_info})
+            if i.get('onclickFn'):
+                corp_detail_post_data = {
+                    'org': str(i.get('CORP_ORG')),
+                    'id': str(i.get('CORP_ID')),
+                    'seq_id': str(i.get('SEQ_ID')),
+                    'specificQuery': 'basicInfo'
+                }
+                detail_url = 'http://218.94.38.242:58888/ecipplatform/ciServlet.json?ciEnter=true'
+                yield scrapy.FormRequest(detail_url, method='POST', formdata=corp_detail_post_data,
+                                         callback=self.parse_corp_base_info, meta={'corp_info': corp_info})
 
         # goto next page
         total = int(response_json.get('total', '0'))
@@ -56,13 +56,15 @@ class CorpCreditSpider(scrapy.Spider):
         page_num = int(math.ceil(total / 10.0))
         page_num = 2
         if current_num and current_num < page_num:
-            print '>>>' * 10, 'next page: [%d],page_num: [%d]' % (current_num + 1, page_num)
             yield scrapy.Request(url=self.start_urls[0], callback=self.parse, meta={'pageNo': '2'})
 
-    def parse_corp_detail(self, response):
+    def parse_corp_base_info(self, response):
+        """工商公示信息->登记基本信息"""
         response_json = json.loads(response.body)
-        corp_info = response.meta.get('corp_info')
-        if corp_info:
+        corp_info = response.meta['corp_info']
+        if corp_info and response_json:
+            response_json = response_json[0]
+
             corp_info['corp_type'] = response_json.get('C3')
             corp_info['legal_person'] = response_json.get('C5')
             corp_info['capital'] = response_json.get('C6')
@@ -75,4 +77,6 @@ class CorpCreditSpider(scrapy.Spider):
             corp_info['approval_date'] = response_json.get('C12')
             corp_info['reg_status'] = response_json.get('C13')
 
-        yield corp_info
+            yield corp_info
+        else:
+            print '+++' * 20, response_json, response.body
