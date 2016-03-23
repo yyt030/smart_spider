@@ -2,15 +2,20 @@
 # coding: utf8
 __author__ = 'yueyt'
 
+import datetime
 import json
 import logging
+import math
 
+import re
 import scrapy
 from ..items.corp_item import CorpBaseItem
 
 
 class CorpCreditSpider(scrapy.Spider):
     name = 'business_credit'
+
+    FETCH_PAGE = 100
     base_url_root = 'http://www.jsgsj.gov.cn:58888'
     base_ip = '218.94.38.242'
     start_urls = ['http://218.94.38.242:58888/province/notice/QueryExceptionDirectory.jsp',
@@ -21,9 +26,9 @@ class CorpCreditSpider(scrapy.Spider):
         current_pageno = response.meta.get('pageNo')
         if not current_pageno:
             current_pageno = '1'
-
+        # print '<<<' * 10, current_pageno
         corp_list_post_data = {'corpName': '', 'pageNo': current_pageno, 'pageSize': '10', 'showRecordLine': '1',
-                               'tmp': 'Sun Mar 20 2016 20:15:40 GMT+0800 (CST)'}
+                               'tmp': str(datetime.datetime.now())}
         yield scrapy.FormRequest(
                 "http://218.94.38.242:58888/province/NoticeServlet.json?QueryExceptionDirectory=true",
                 formdata=corp_list_post_data,
@@ -41,7 +46,7 @@ class CorpCreditSpider(scrapy.Spider):
                 corp_detail_post_data = {
                     'org': str(i.get('CORP_ORG')),
                     'id': str(i.get('CORP_ID')),
-                    'seq_id': str(i.get('SEQ_ID')),
+                    'seq_id': re.split('[,\'"]+', i.get('onclickFn'))[10],
                     'specificQuery': 'basicInfo'
                 }
                 detail_url = 'http://218.94.38.242:58888/ecipplatform/ciServlet.json?ciEnter=true'
@@ -51,12 +56,10 @@ class CorpCreditSpider(scrapy.Spider):
         # goto next page
         total = int(response_json.get('total', '0'))
         current_num = int(response.meta.get('pageNo', '0'))
-
-        import math
         page_num = int(math.ceil(total / 10.0))
-        page_num = 2
-        if current_num and current_num < page_num:
-            yield scrapy.Request(url=self.start_urls[0], callback=self.parse, meta={'pageNo': '2'})
+        # print '>>>' * 10, current_num, page_num, response_json.get('total')
+        if current_num and current_num < page_num and current_num < self.FETCH_PAGE:
+            yield scrapy.Request(url=self.start_urls[0], callback=self.parse, meta={'pageNo': str(current_num + 1)})
 
     def parse_corp_base_info(self, response):
         """工商公示信息->登记基本信息"""
@@ -79,4 +82,4 @@ class CorpCreditSpider(scrapy.Spider):
 
             yield corp_info
         else:
-            print '+++' * 20, response_json, response.body
+            print '+++' * 20, response_json
