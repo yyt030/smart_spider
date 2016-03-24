@@ -21,7 +21,7 @@ class CorpCreditSpider(scrapy.Spider):
     url_detail_base_info = 'http://218.94.38.242:58888/ecipplatform/ciServlet.json?ciEnter=true'
 
     logger = logging.getLogger()
-    start_page_no = 755
+    start_page_no = 3105
 
     corp_list_post_data = {'corpName': '', 'pageNo': str(start_page_no), 'pageSize': '10', 'showRecordLine': '1',
                            'tmp': str(datetime.datetime.now())}
