@@ -15,24 +15,22 @@ from ..items.corp_item import CorpBaseItem
 class CorpCreditSpider(scrapy.Spider):
     name = 'business_credit'
 
-    FETCH_PAGE = 100
-    base_url_root = 'http://www.jsgsj.gov.cn:58888'
-    base_ip = '218.94.38.242'
     start_urls = ['http://218.94.38.242:58888/province/notice/QueryExceptionDirectory.jsp',
                   ]
+    url_exception_list = 'http://218.94.38.242:58888/province/NoticeServlet.json?QueryExceptionDirectory=true'
+    url_detail_base_info = 'http://218.94.38.242:58888/ecipplatform/ciServlet.json?ciEnter=true'
+
     logger = logging.getLogger()
+    start_page_no = 755
+
+    corp_list_post_data = {'corpName': '', 'pageNo': str(start_page_no), 'pageSize': '10', 'showRecordLine': '1',
+                           'tmp': str(datetime.datetime.now())}
 
     def parse(self, response):
-        current_pageno = response.meta.get('pageNo')
-        if not current_pageno:
-            current_pageno = '1'
-        # print '<<<' * 10, current_pageno
-        corp_list_post_data = {'corpName': '', 'pageNo': current_pageno, 'pageSize': '10', 'showRecordLine': '1',
-                               'tmp': str(datetime.datetime.now())}
+        self.logger.info('>>>' * 10 + 'current page no: %d. starting ...' % self.start_page_no)
         yield scrapy.FormRequest(
-                "http://218.94.38.242:58888/province/NoticeServlet.json?QueryExceptionDirectory=true",
-                formdata=corp_list_post_data,
-                callback=self.parse_corp_list, meta={'pageNo': str(current_pageno)})
+                self.url_exception_list, formdata=self.corp_list_post_data,
+                callback=self.parse_corp_list, meta={'next_page_no': str(self.start_page_no)})
 
     def parse_corp_list(self, response):
         response_json = json.loads(response.body)
@@ -43,23 +41,31 @@ class CorpCreditSpider(scrapy.Spider):
             corp_info['join_exception_date'] = i.get('C3')
 
             if i.get('onclickFn'):
-                corp_detail_post_data = {
-                    'org': str(i.get('CORP_ORG')),
-                    'id': str(i.get('CORP_ID')),
-                    'seq_id': re.split('[,\'"]+', i.get('onclickFn'))[10],
-                    'specificQuery': 'basicInfo'
-                }
-                detail_url = 'http://218.94.38.242:58888/ecipplatform/ciServlet.json?ciEnter=true'
-                yield scrapy.FormRequest(detail_url, method='POST', formdata=corp_detail_post_data,
-                                         callback=self.parse_corp_base_info, meta={'corp_info': corp_info})
+                try:
+                    corp_detail_post_data = {
+                        'org': str(i.get('CORP_ORG')),
+                        'id': str(i.get('CORP_ID')),
+                        'seq_id': re.split('[,\'"]+', i.get('onclickFn'))[10],
+                        'specificQuery': 'basicInfo'
+                    }
+                except IndexError:
+                    print i, i.get('CORP_ORG'), i.get('CORP_ID'), i.get('onclickFn')
+                    yield corp_info
+                else:
+                    yield scrapy.FormRequest(self.url_detail_base_info, formdata=corp_detail_post_data,
+                                             callback=self.parse_corp_base_info, meta={'corp_info': corp_info})
 
         # goto next page
         total = int(response_json.get('total', '0'))
-        current_num = int(response.meta.get('pageNo', '0'))
-        page_num = int(math.ceil(total / 10.0))
-        # print '>>>' * 10, current_num, page_num, response_json.get('total')
-        if current_num and current_num < page_num and current_num < self.FETCH_PAGE:
-            yield scrapy.Request(url=self.start_urls[0], callback=self.parse, meta={'pageNo': str(current_num + 1)})
+        next_page_no = int(response.meta.get('next_page_no', '1')) + 1
+        all_page_no = int(math.ceil(total / 10.0))
+        self.logger.info('>>>' * 10 + 'next page no: %s. all page no: %s' % (next_page_no, all_page_no))
+        if next_page_no and next_page_no < all_page_no:
+            self.corp_list_post_data['pageNo'] = str(next_page_no)
+            self.corp_list_post_data['tmp'] = str(datetime.datetime.now())
+            yield scrapy.FormRequest(
+                    self.url_exception_list, formdata=self.corp_list_post_data,
+                    callback=self.parse_corp_list, meta={'next_page_no': str(next_page_no)})
 
     def parse_corp_base_info(self, response):
         """工商公示信息->登记基本信息"""
