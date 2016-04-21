@@ -4,6 +4,7 @@ __author__ = 'yueyt'
 
 import StringIO
 import datetime
+import random
 
 import config
 import requests
@@ -16,6 +17,7 @@ tmp = temp = str(datetime.datetime.now().strftime(GMT_FORMAT))
 def get_verify_code(request_session):
     """从页面中获取验证码image"""
     header = config.headers
+    header['X-Forward-for'] = '.'.join('%s' % random.randint(0, 255) for i in range(4))
     header['Accept'] = 'image/png,image/*;q=0.8,*/*;q=0.5'
     url = 'http://218.94.38.242:58888/province/rand_img.jsp'
     payload = {
@@ -24,16 +26,18 @@ def get_verify_code(request_session):
     }
     r = request_session.get(url, headers=header, params=payload, timeout=10)
     img = StringIO.StringIO(r.content)
+    print '>>>', r.request.headers
     return verify_code.verify(img)
 
 
 def get_response_content(request_session, payload):
     """从页面中企业信息"""
-    headers = config.headers
-    headers['Accept'] = 'application/json, text/javascript, */*; q=0.01'
-    headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8'
+    header = config.headers
+    header['X-Forward-for'] = '.'.join('%s' % random.randint(0, 255) for i in range(4))
+    header['Accept'] = 'application/json, text/javascript, */*; q=0.01'
+    header['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8'
     url = 'http://218.94.38.242:58888/province/infoQueryServlet.json?queryCinfo=true'
-    r = request_session.post(url, headers=headers, data=payload, timeout=10)
+    r = request_session.post(url, headers=header, data=payload, timeout=10)
     return r.text
 
 
@@ -57,14 +61,14 @@ def search(name):
 
 if __name__ == '__main__':
     serarch_nam_list = """无锡联发货运有限公司
-无锡市南长区兰涛烟酒杂品店
-惠山区前洲恒鸿服饰加工厂
-江苏省宏晟重工集团有限公司
-江阴悦庭酒店管理有限公司
-江阴市宏晟置业有限公司"""
+        无锡市南长区兰涛烟酒杂品店
+        惠山区前洲恒鸿服饰加工厂
+        江苏省宏晟重工集团有限公司
+        江阴悦庭酒店管理有限公司
+        江阴市宏晟置业有限公司"""
     all_num = 0
     failed_num = 0
-    for name in serarch_nam_list.split('\n'):
+    for name in serarch_nam_list.replace(' ', '').split('\n'):
         all_num += 1
         response_text = search(name)
         print '>>>' * 10, name, response_text

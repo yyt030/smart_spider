@@ -14,6 +14,7 @@ headers = {
     'Connection': 'keep-alive',
     'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0',
     'Cache-Control': "no-cache",
-    'Pragma': "no-cache"
+    'Pragma': "no-cache",
+    'X-Forward-for': '182.119.201.201'
 }
 cookies_url = 'http://218.94.38.242:58888/province/js/lhgdialog-4.2.0/skins/icons/loading.gif'
