@@ -94,6 +94,7 @@ if __name__ == '__main__':
         江阴市宏晟置业有限公司"""
     all_num = 0
     failed_num = 0
+    print '===' * 10, 'start spider ...'
     for name in serarch_nam_list.replace(' ', '').split('\n'):
         all_num += 1
         response_text = ''
@@ -102,7 +103,7 @@ if __name__ == '__main__':
             if response_text.find(u'验证码填写错误') > 0:
                 time.sleep(0.1)
                 continue
-            print '>>>' * 10, name, response_text
+            print '>>>', name, response_text
             if not response_text:
                 failed_num += 1
                 continue
