@@ -18,3 +18,5 @@ headers = {
     'X-Forward-for': '182.119.201.201'
 }
 cookies_url = 'http://218.94.38.242:58888/province/js/lhgdialog-4.2.0/skins/icons/loading.gif'
+RETRY_NUM = 5
+INTERVAL = 1

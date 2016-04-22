@@ -5,6 +5,7 @@ __author__ = 'yueyt'
 import StringIO
 import datetime
 import random
+import time
 
 import config
 import requests
@@ -24,10 +25,16 @@ def get_verify_code(request_session):
         'type': '7',
         'temp': temp
     }
-    r = request_session.get(url, headers=header, params=payload, timeout=10)
-    img = StringIO.StringIO(r.content)
-    print '>>>', r.request.headers
-    return verify_code.verify(img)
+
+    for _ in xrange(config.RETRY_NUM):
+        try:
+            r = request_session.get(url, headers=header, params=payload, timeout=10)
+        except requests.RequestException as e:
+            print '>>>' * 10, 'try again', _
+            time.sleep(config.INTERVAL)
+            continue
+        img = StringIO.StringIO(r.content)
+        return verify_code.verify(img)
 
 
 def get_response_content(request_session, payload):
@@ -37,18 +44,37 @@ def get_response_content(request_session, payload):
     header['Accept'] = 'application/json, text/javascript, */*; q=0.01'
     header['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8'
     url = 'http://218.94.38.242:58888/province/infoQueryServlet.json?queryCinfo=true'
-    r = request_session.post(url, headers=header, data=payload, timeout=10)
-    return r.text
+
+    for _ in xrange(config.RETRY_NUM):
+        try:
+            r = request_session.post(url, headers=header, data=payload, timeout=10)
+        except requests.RequestException as e:
+            print '>>>' * 10, 'try again', _
+            time.sleep(config.INTERVAL)
+            continue
+        return r.text
 
 
 def search(name):
     # init request session
     request_session = requests.session()
-    request_session.get(config.cookies_url)
+
+    # get cookie
+    for _ in xrange(config.RETRY_NUM):
+        try:
+            r = request_session.get(config.cookies_url)
+        except requests.RequestException as e:
+            time.sleep(config.INTERVAL)
+            continue
+        break
+    if not request_session.cookies:
+        print '!!!' * 10, 'get cookies failed'
+        return
 
     # get 验证码 && 识别验证码
     verify_code_string = get_verify_code(request_session)
     while len(verify_code_string) != 6:
+        time.sleep(0.01)
         verify_code_string = get_verify_code(request_session)
 
     # search input string
@@ -70,21 +96,17 @@ if __name__ == '__main__':
     failed_num = 0
     for name in serarch_nam_list.replace(' ', '').split('\n'):
         all_num += 1
-        response_text = search(name)
-        print '>>>' * 10, name, response_text
-        if response_text.find(u'验证码') > 0 or response_text.find(u'限制其访问3天') > 0:
-            failed_num += 1
+        response_text = ''
+        for _ in xrange(config.RETRY_NUM):
+            response_text = search(name)
+            if response_text.find(u'验证码填写错误') > 0:
+                time.sleep(0.1)
+                continue
+            print '>>>' * 10, name, response_text
+            if not response_text:
+                failed_num += 1
+                continue
+            if response_text.find(u'验证码') > 0 or response_text.find(u'限制其访问') > 0:
+                failed_num += 1
+            break
     print '===' * 10, all_num, failed_num
-
-    # search(u'无锡申荣汽车有限公司')
-    # str = '''[{"INFO":"<dt><a href='javascript:void(0)' onclick="queryInfor('/ecipplatform/inner_ci/ci_queryCorpInfor_gsRelease.jsp','1022','2011977','40','91320200136006161B','320200000120638','ecipplatform')">无锡申荣汽车有限公司</a> </dt><dd>统一社会信用代码:<span>91320200136006161B</span>     法定代表人:<span>张建平</span>     登记机关:<span>无锡市工商行政管理局</span>     成立日期:<span>1997年03月14日</span></dd><dt>无锡申荣汽车有限公司分公司</dt><dd>注册号:<span>3202111803060</span> 负责人:<span>张小星</span>   登记机关:<span>无锡市滨湖区市场监督管理局</span>     注销日期:<span>2005年03月03日</span></dd><dt>无锡申荣汽车有限公司招待所</dt><dd>注册号:<span>3202001805174</span> 负责人:<span>张建平</span>   登记机关:<span>无锡市工商行政管理局</span>     注销日期:<span>2007年06月28日</span></dd><dt>无锡申荣汽车有限公司苏州办事处</dt><dd>注册号:<span>3205001880247</span>    负责人:<span>张志</span>   登记机关:<span>苏州市工商行政管理局</span>     吊销日期:<span>2004年03月17日</span></dd>","COUNT":"","TIPS":""}]'''
-    # print json.dumps(str)
-
-    # print [s.strip() for s in str.split(',')][0]
-    # import json
-    # from xml.etree import ElementTree as et
-    #
-    # ss = str[1:-1].replace('="', '=\'').replace(')">', ')\'>').replace('\'','')
-    # ss = json.loads(ss)
-    # page = ss.get('INFO').encode('utf8')
-    # print page
